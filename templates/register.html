@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Account — Therapy Session{% endblock %}
+
+{% block content %}
+
+<div class="auth-page">
+
+    <!-- ==========================================
+         BRAND / INTRODUCTION
+    =========================================== -->
+
+    <section class="auth-intro">
+
+        <div class="auth-brand">
+
+            <div class="auth-logo">
+                ◐
+            </div>
+
+            <div class="auth-brand-name">
+                Therapy Session
+            </div>
+
+        </div>
+
+
+        <div class="intro-content">
+
+            <span class="intro-eyebrow">
+                Your space starts here
+            </span>
+
+            <h1>
+                A place where you
+                can simply be yourself.
+            </h1>
+
+            <p>
+                Therapy Session gives you a quiet space to talk,
+                reflect, and make sense of what's happening in your
+                life — without needing to know exactly what to say.
+            </p>
+
+
+            <div class="intro-points">
+
+                <div class="intro-point">
+
+                    <span class="intro-point-icon">
+                        ♡
+                    </span>
+
+                    <div>
+
+                        <strong>
+                            A judgment-free space
+                        </strong>
+
+                        <span>
+                            You can be honest about what you're feeling.
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="intro-point">
+
+                    <span class="intro-point-icon">
+                        ◌
+                    </span>
+
+                    <div>
+
+                        <strong>
+                            Conversations that feel natural
+                        </strong>
+
+                        <span>
+                            Talk, vent, reflect, or simply have a conversation.
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="intro-point">
+
+                    <span class="intro-point-icon">
+                        ✦
+                    </span>
+
+                    <div>
+
+                        <strong>
+                            Support when you're ready
+                        </strong>
+
+                        <span>
+                            Get gentle guidance when you actually want it.
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="auth-quote">
+
+            <span>“</span>
+
+            You don't have to figure everything
+            out today.
+
+        </div>
+
+    </section>
+
+
+
+    <!-- ==========================================
+         REGISTER
+    =========================================== -->
+
+    <section class="auth-panel">
+
+        <div class="auth-card">
+
+            <div class="auth-card-header">
+
+                <span class="mobile-brand">
+                    Therapy Session
+                </span>
+
+                <h2>
+                    Create your space
+                </h2>
+
+                <p>
+                    Let's start with something simple.
+                </p>
+
+            </div>
+
+
+            {% with messages = get_flashed_messages() %}
+
+                {% if messages %}
+
+                    <div class="auth-error">
+
+                        <span>!</span>
+
+                        {{ messages[0] }}
+
+                    </div>
+
+                {% endif %}
+
+            {% endwith %}
+
+
+            <form method="POST" class="auth-form">
+
+                <div class="form-group">
+
+                    <label for="username">
+                        What should we call you?
+                    </label>
+
+                    <input
+                        id="username"
+                        type="text"
+                        name="username"
+                        placeholder="Your name or nickname"
+                        autocomplete="name"
+                        required
+                    >
+
+                    <small>
+                        Use whatever name feels comfortable.
+                    </small>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="email">
+                        Email address
+                    </label>
+
+                    <input
+                        id="email"
+                        type="email"
+                        name="email"
+                        placeholder="you@example.com"
+                        autocomplete="email"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="password">
+                        Create a password
+                    </label>
+
+                    <input
+                        id="password"
+                        type="password"
+                        name="password"
+                        placeholder="Choose a secure password"
+                        autocomplete="new-password"
+                        required
+                    >
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="auth-submit"
+                >
+                    Create my space
+                    <span>→</span>
+                </button>
+
+            </form>
+
+
+            <div class="auth-divider">
+
+                <span></span>
+
+                <small>
+                    already a member?
+                </small>
+
+                <span></span>
+
+            </div>
+
+
+            <p class="auth-switch">
+
+                Already have an account?
+
+                <a href="{{ url_for('login') }}">
+                    Sign in
+                </a>
+
+            </p>
+
+
+            <div class="auth-footer-note">
+
+                <span>◉</span>
+
+                Take your time. There's no rush.
+
+            </div>
+
+        </div>
+
+    </section>
+
+</div>
+
+{% endblock %}

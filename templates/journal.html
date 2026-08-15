@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Daily Journal - Serene Therapy{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <h2>Daily Journal</h2>
+        <p>Log one good thing or accomplishment from today, no matter how small.</p>
+    </div>
+
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <form method="POST">
+            <textarea name="wins" rows="3" class="journal-textarea" placeholder="Ready to talk about your day?" required></textarea>
+            <button type="submit" class="btn">Log Victory</button>
+        </form>
+    </div>
+
+    <h3 style="margin-bottom: 1rem; color: #334155; font-size: 0.95rem;">Logged Victories</h3>
+    {% for entry in entries %}
+        <div class="card" style="margin-bottom: 0.8rem;">
+            <p style="font-size: 0.88rem; color: #0f172a; line-height: 1.4;">{{ entry.wins }}</p>
+            <small style="color: #94a3b8; font-size: 0.75rem; margin-top: 0.4rem; display: block;">{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        </div>
+    {% else %}
+        <p style="color: #94a3b8; font-size: 0.85rem;">No journal entries logged yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

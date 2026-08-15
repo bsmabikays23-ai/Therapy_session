@@ -1,0 +1,610 @@
+{% extends 'base.html' %}
+
+{% block title %}
+Talk — Serene
+{% endblock %}
+
+
+{% block content %}
+
+<div class="app-shell">
+
+    <!-- ==========================================
+         SIDEBAR
+    =========================================== -->
+
+    <aside class="sidebar">
+
+        <div class="sidebar-top">
+
+            <div class="sidebar-brand">
+
+                <span class="brand-mark small">
+                    ◐
+                </span>
+
+                <div>
+                    <strong>Serene</strong>
+
+                    <span>
+                        Your quiet space
+                    </span>
+                </div>
+
+            </div>
+
+
+            <a class="new-chat-btn"
+               href="{{ url_for('new_chat') }}">
+
+                <span>＋</span>
+
+                New conversation
+
+            </a>
+
+        </div>
+
+
+        <!-- Navigation -->
+
+        <div class="sidebar-section">
+
+            <div class="section-label">
+                Your space
+            </div>
+
+
+            <a class="side-nav active"
+               href="{{ url_for('dashboard') }}">
+
+                <span>💬</span>
+
+                Talk
+
+            </a>
+
+
+            <a class="side-nav"
+               href="{{ url_for('journal') }}">
+
+                <span>✦</span>
+
+                Journal
+
+            </a>
+
+
+            <a class="side-nav"
+               href="{{ url_for('quiz') }}">
+
+                <span>◔</span>
+
+                Check-in
+
+            </a>
+
+        </div>
+
+
+        <!-- Previous conversations -->
+
+        <div class="sidebar-section sessions-section">
+
+            <div class="section-label">
+                Recent conversations
+            </div>
+
+
+            {% for s in past_sessions %}
+
+                <a
+                    class="session-link
+                    {% if s.session_id == active_session_id %}
+                        current
+                    {% endif %}"
+                    href="{{ url_for(
+                        'switch_chat',
+                        session_id=s.session_id
+                    ) }}"
+                >
+
+                    <span>
+                        {{ (s.first_msg or 'New conversation')[:38] }}
+
+                        {% if (s.first_msg or '')|length > 38 %}
+                            …
+                        {% endif %}
+                    </span>
+
+
+                    <small>
+                        {{ s.start_time.strftime('%b %d') }}
+                    </small>
+
+                </a>
+
+            {% else %}
+
+                <p class="empty-state">
+                    Your conversations will appear here.
+                </p>
+
+            {% endfor %}
+
+        </div>
+
+
+        <div class="sidebar-footer">
+
+            <div class="privacy-note">
+
+                <span>●</span>
+
+                A calm, private space
+
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- ==========================================
+         MAIN CHAT
+    =========================================== -->
+
+    <main class="chat-workspace">
+
+
+        <!-- Chat header -->
+
+        <div class="chat-header-bar">
+
+            <div class="chat-title">
+
+                <div class="serene-avatar">
+                    ◐
+                </div>
+
+
+                <div>
+
+                    <h1>
+                        Serene
+                    </h1>
+
+                    <span class="status-indicator">
+                        Here with you
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <a
+                class="quiet-action"
+                href="{{ url_for('new_chat') }}"
+            >
+                ＋ New
+            </a>
+
+        </div>
+
+
+        <!-- ======================================
+             CHAT AREA
+        ======================================= -->
+
+        <div
+            class="chat-box"
+            id="chat-box"
+            aria-live="polite"
+        >
+
+            {% if not history %}
+
+            <!-- Welcome -->
+
+            <div class="welcome-state">
+
+                <div class="welcome-orb">
+                    ◐
+                </div>
+
+
+                <p class="eyebrow">
+                    A quiet place to talk
+                </p>
+
+
+                <h2>
+                    What's been on your mind?
+                </h2>
+
+
+                <p class="welcome-copy">
+
+                    You don't have to have the
+                    right words.
+
+                    Start wherever feels easiest.
+
+                </p>
+
+
+                <div class="prompt-grid">
+
+                    <button
+                        type="button"
+                        class="prompt-chip"
+                    >
+                        I just need somewhere to talk.
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="prompt-chip"
+                    >
+                        Today has been difficult.
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="prompt-chip"
+                    >
+                        I'm actually feeling okay.
+                    </button>
+
+                </div>
+
+            </div>
+
+            {% endif %}
+
+
+            <!-- Existing conversation -->
+
+            {% for msg in history %}
+
+                <div
+                    class="msg-wrapper
+                    {% if msg.sender == 'user' %}
+                        user
+                    {% else %}
+                        bot
+                    {% endif %}"
+                >
+
+                    {% if msg.sender != 'user' %}
+
+                        <div class="message-avatar">
+                            ◐
+                        </div>
+
+                    {% endif %}
+
+
+                    <div
+                        class="msg
+                        {% if msg.sender == 'user' %}
+                            user
+                        {% else %}
+                            assistant
+                        {% endif %}"
+                    >
+
+                        {% if msg.sender != 'user' %}
+
+                            <span class="message-name">
+                                Serene
+                            </span>
+
+                        {% endif %}
+
+
+                        <div class="message-text">
+                            {{ msg.message }}
+                        </div>
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+
+        <!-- ======================================
+             MESSAGE COMPOSER
+        ======================================= -->
+
+        <div class="composer-area">
+
+            <form
+                id="chat-form"
+                class="composer"
+            >
+
+                <input
+                    type="text"
+                    id="user-input"
+                    placeholder="What's on your mind?"
+                    autocomplete="off"
+                    required
+                >
+
+
+                <button
+                    type="submit"
+                    aria-label="Send message"
+                >
+                    ↑
+                </button>
+
+            </form>
+
+
+            <p class="composer-hint">
+
+                Press Enter to send · Take your time
+
+            </p>
+
+        </div>
+
+    </main>
+
+</div>
+
+
+<!-- ==========================================
+     CHAT JAVASCRIPT
+=========================================== -->
+
+<script>
+
+const form =
+    document.getElementById('chat-form');
+
+const input =
+    document.getElementById('user-input');
+
+const chatBox =
+    document.getElementById('chat-box');
+
+
+
+/*
+    Add a message to the conversation
+*/
+
+function appendMessage(role, text) {
+
+    const wrapper =
+        document.createElement('div');
+
+    wrapper.className =
+        `msg-wrapper ${
+            role === 'user'
+                ? 'user'
+                : 'bot'
+        }`;
+
+
+    /*
+        Serene avatar
+    */
+
+    if (role !== 'user') {
+
+        const avatar =
+            document.createElement('div');
+
+        avatar.className =
+            'message-avatar';
+
+        avatar.textContent =
+            '◐';
+
+        wrapper.appendChild(avatar);
+
+    }
+
+
+    /*
+        Message bubble
+    */
+
+    const bubble =
+        document.createElement('div');
+
+    bubble.className =
+        `msg ${
+            role === 'user'
+                ? 'user'
+                : 'assistant'
+        }`;
+
+
+    /*
+        Serene name
+    */
+
+    if (role !== 'user') {
+
+        const name =
+            document.createElement('span');
+
+        name.className =
+            'message-name';
+
+        name.textContent =
+            'Serene';
+
+        bubble.appendChild(name);
+
+    }
+
+
+    /*
+        Message text
+    */
+
+    const message =
+        document.createElement('div');
+
+    message.className =
+        'message-text';
+
+    message.textContent =
+        text;
+
+    bubble.appendChild(message);
+
+
+    wrapper.appendChild(bubble);
+
+    chatBox.appendChild(wrapper);
+
+
+    /*
+        Scroll to newest message
+    */
+
+    chatBox.scrollTop =
+        chatBox.scrollHeight;
+}
+
+
+
+/*
+    Quick-start prompts
+*/
+
+document
+    .querySelectorAll('.prompt-chip')
+    .forEach(button => {
+
+        button.addEventListener(
+            'click',
+            () => {
+
+                input.value =
+                    button.textContent.trim();
+
+                input.focus();
+
+            }
+        );
+
+    });
+
+
+
+/*
+    Send message
+*/
+
+form.addEventListener(
+    'submit',
+    async (event) => {
+
+        event.preventDefault();
+
+
+        const text =
+            input.value.trim();
+
+
+        if (!text) {
+            return;
+        }
+
+
+        /*
+            Remove welcome screen
+        */
+
+        const welcome =
+            document.querySelector(
+                '.welcome-state'
+            );
+
+        if (welcome) {
+            welcome.remove();
+        }
+
+
+        /*
+            Display user's message
+        */
+
+        appendMessage(
+            'user',
+            text
+        );
+
+
+        input.value = '';
+
+        input.disabled = true;
+
+
+        try {
+
+            const response =
+                await fetch(
+                    '/api/chat',
+                    {
+                        method: 'POST',
+
+                        headers: {
+                            'Content-Type':
+                                'application/json'
+                        },
+
+                        body:
+                            JSON.stringify({
+                                message: text
+                            })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            appendMessage(
+                'assistant',
+                data.reply ||
+                "I'm still here with you."
+            );
+
+
+        } catch (error) {
+
+            appendMessage(
+                'assistant',
+                'Something interrupted the connection. You can try again when you’re ready.'
+            );
+
+        } finally {
+
+            input.disabled = false;
+
+            input.focus();
+
+        }
+
+    }
+);
+
+</script>
+
+{% endblock %}

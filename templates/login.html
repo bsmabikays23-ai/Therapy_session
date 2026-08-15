@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+
+{% block title %}Login — Therapy Session{% endblock %}
+
+{% block content %}
+
+<div class="auth-page">
+
+    <!-- ==========================================
+         BRAND / INTRODUCTION
+    =========================================== -->
+
+    <section class="auth-intro">
+
+        <div class="auth-brand">
+
+            <div class="auth-logo">
+                ◐
+            </div>
+
+            <div class="auth-brand-name">
+                Therapy Session
+            </div>
+
+        </div>
+
+
+        <div class="intro-content">
+
+            <span class="intro-eyebrow">
+                A space to be heard
+            </span>
+
+            <h1>
+                You don't always need
+                to have the right words.
+            </h1>
+
+            <p>
+                Therapy Session is a private, supportive space where
+                you can talk through what's on your mind, reflect on
+                what you're feeling, and take things one conversation
+                at a time.
+            </p>
+
+
+            <div class="intro-points">
+
+                <div class="intro-point">
+
+                    <span class="intro-point-icon">
+                        ♡
+                    </span>
+
+                    <div>
+                        <strong>
+                            Talk openly
+                        </strong>
+
+                        <span>
+                            Share what's on your mind without judgment.
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <div class="intro-point">
+
+                    <span class="intro-point-icon">
+                        ◌
+                    </span>
+
+                    <div>
+                        <strong>
+                            Take your time
+                        </strong>
+
+                        <span>
+                            There's no pressure to have everything figured out.
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <div class="intro-point">
+
+                    <span class="intro-point-icon">
+                        ✦
+                    </span>
+
+                    <div>
+                        <strong>
+                            Move at your own pace
+                        </strong>
+
+                        <span>
+                            Reflect, check in, and work through things gradually.
+                        </span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="auth-quote">
+
+            <span>“</span>
+
+            Sometimes saying things out loud
+            is the first step toward understanding them.
+
+        </div>
+
+    </section>
+
+
+
+    <!-- ==========================================
+         LOGIN
+    =========================================== -->
+
+    <section class="auth-panel">
+
+        <div class="auth-card">
+
+            <div class="auth-card-header">
+
+                <span class="mobile-brand">
+                    Therapy Session
+                </span>
+
+                <h2>
+                    Welcome back
+                </h2>
+
+                <p>
+                    It's good to have you here.
+                </p>
+
+            </div>
+
+
+            {% with messages = get_flashed_messages() %}
+
+                {% if messages %}
+
+                    <div class="auth-error">
+
+                        <span>!</span>
+
+                        {{ messages[0] }}
+
+                    </div>
+
+                {% endif %}
+
+            {% endwith %}
+
+
+            <form method="POST" class="auth-form">
+
+                <div class="form-group">
+
+                    <label for="email">
+                        Email address
+                    </label>
+
+                    <input
+                        id="email"
+                        type="email"
+                        name="email"
+                        placeholder="you@example.com"
+                        autocomplete="email"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <div class="label-row">
+
+                        <label for="password">
+                            Password
+                        </label>
+
+                    </div>
+
+                    <input
+                        id="password"
+                        type="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                        required
+                    >
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="auth-submit"
+                >
+                    Sign in
+                    <span>→</span>
+                </button>
+
+            </form>
+
+
+            <div class="auth-divider">
+
+                <span></span>
+
+                <small>
+                    or
+                </small>
+
+                <span></span>
+
+            </div>
+
+
+            <p class="auth-switch">
+
+                Don't have an account?
+
+                <a href="{{ url_for('register') }}">
+                    Create one
+                </a>
+
+            </p>
+
+
+            <div class="auth-footer-note">
+
+                <span>◉</span>
+
+                A calm space for honest conversations.
+
+            </div>
+
+        </div>
+
+    </section>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Serene Therapy{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    {% if session.get('user_id') %}
+    <header>
+        <h1>Serene Therapy Companion</h1>
+        <nav class="nav-links">
+            <a href="/dashboard">Chat</a>
+            <a href="/journal">Daily Journal</a>
+            <a href="/quiz">Weekly Progress</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </header>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
