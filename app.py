@@ -18,11 +18,10 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-dev-key-change-in-pr
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f'sqlite:///{INSTANCE_DB_PATH}')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-
 db = SQLAlchemy(app)
 
 HF_API_KEY = os.getenv('HF_API_KEY')
-HF_MODEL_URL = os.getenv('HF_MODEL_URL', 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2')
+HF_MODEL_URL = os.getenv('HF_MODEL_URL', 'https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta')
 
 EMERGENCY_LINES = [
     {'name': 'SADAG', 'number': '0800 567 567'},
@@ -265,26 +264,39 @@ def chat():
     session_id = session.get('chat_session_id') or str(uuid.uuid4())
     session['chat_session_id'] = session_id
 
+    # Save user message
     user_msg = ChatMessage(user_id=session['user_id'], session_id=session_id, sender='user', message=user_message)
     db.session.add(user_msg)
     db.session.commit()
 
+    # Default fallback
     bot_reply = get_local_reply(user_message)
 
     if HF_API_KEY:
-        headers = {'Authorization': f'Bearer {HF_API_KEY}'}
-        payload = {'inputs': user_message}
+        headers = {
+            'Authorization': f'Bearer {HF_API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        payload = {
+            'inputs': f"<|system|>\nYou are a supportive, empathetic therapy assistant named Serene. Keep responses warm and concise.</s>\n<|user|>\n{user_message}</s>\n<|assistant|>\n",
+            'parameters': {'max_new_tokens': 150, 'return_full_text': False}
+        }
+
         try:
-            response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=10)
+            response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=15)
+            
             if response.status_code == 200:
                 result = response.json()
-                if isinstance(result, list) and result and isinstance(result[0], dict):
-                    bot_reply = result[0].get('generated_text', bot_reply)
-                elif isinstance(result, dict):
-                    bot_reply = result.get('generated_text', bot_reply)
-        except Exception:
-            bot_reply = 'The service is temporarily unavailable. I’m still here with you.'
+                if isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
+                    bot_reply = result[0]['generated_text'].strip()
+                elif isinstance(result, dict) and 'generated_text' in result:
+                    bot_reply = result['generated_text'].strip()
+            else:
+                print(f"[HF API ERROR] Status {response.status_code}: {response.text}")
+        except Exception as err:
+            print(f"[HF CONNECTION ERROR] {err}")
 
+    # Save assistant message
     assistant_msg = ChatMessage(user_id=session['user_id'], session_id=session_id, sender='bot', message=bot_reply)
     db.session.add(assistant_msg)
     db.session.commit()
