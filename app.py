@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
+from huggingface_hub import InferenceClient
 
 load_dotenv()
 
@@ -19,9 +20,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f'sqlite:///{I
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-
-HF_API_KEY = os.getenv('HF_API_KEY')
-HF_MODEL_URL = os.getenv('HF_MODEL_URL', 'https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta')
 
 EMERGENCY_LINES = [
     {'name': 'SADAG', 'number': '0800 567 567'},
@@ -264,39 +262,39 @@ def chat():
     session_id = session.get('chat_session_id') or str(uuid.uuid4())
     session['chat_session_id'] = session_id
 
-    # Save user message
+    # Save user message to database
     user_msg = ChatMessage(user_id=session['user_id'], session_id=session_id, sender='user', message=user_message)
     db.session.add(user_msg)
     db.session.commit()
 
-    # Default fallback
+    # Default fallback local response
     bot_reply = get_local_reply(user_message)
 
-    if HF_API_KEY:
-        headers = {
-            'Authorization': f'Bearer {HF_API_KEY}',
-            'Content-Type': 'application/json'
-        }
-        payload = {
-            'inputs': f"<|system|>\nYou are a supportive, empathetic therapy assistant named Serene. Keep responses warm and concise.</s>\n<|user|>\n{user_message}</s>\n<|assistant|>\n",
-            'parameters': {'max_new_tokens': 150, 'return_full_text': False}
-        }
+    hf_token = os.getenv('HF_API_KEY')
 
+    if hf_token:
         try:
-            response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=15)
+            client = InferenceClient(api_key=hf_token)
             
-            if response.status_code == 200:
-                result = response.json()
-                if isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
-                    bot_reply = result[0]['generated_text'].strip()
-                elif isinstance(result, dict) and 'generated_text' in result:
-                    bot_reply = result['generated_text'].strip()
-            else:
-                print(f"[HF API ERROR] Status {response.status_code}: {response.text}")
-        except Exception as err:
-            print(f"[HF CONNECTION ERROR] {err}")
+            completion = client.chat.completions.create(
+                model="HuggingFaceH4/zephyr-7b-beta",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are Serene, a warm, compassionate, and supportive therapy companion. Provide empathetic, grounding, and concise responses to help users navigate emotional distress."
+                    },
+                    {"role": "user", "content": user_message}
+                ],
+                max_tokens=150,
+            )
+            
+            if completion.choices and len(completion.choices) > 0:
+                bot_reply = completion.choices[0].message.content.strip()
 
-    # Save assistant message
+        except Exception as err:
+            print(f"[HF CLIENT ERROR]: {err}")
+
+    # Save bot message to database
     assistant_msg = ChatMessage(user_id=session['user_id'], session_id=session_id, sender='bot', message=bot_reply)
     db.session.add(assistant_msg)
     db.session.commit()
