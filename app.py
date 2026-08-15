@@ -8,6 +8,7 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, ses
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
 from huggingface_hub import InferenceClient
+from prompts import THERAPEUTIC_SYSTEM_PROMPT
 
 load_dotenv()
 
@@ -73,18 +74,38 @@ with app.app_context():
 
 
 def get_local_reply(user_message: str) -> str:
-    text = user_message.lower()
+    """Small fallback used only when the Hugging Face request fails."""
+    text = user_message.lower().strip()
+
     if not text:
-        return "I’m listening. What feels most present right now?"
+        return "I'm here. What's on your mind?"
+
     if text.startswith(('hi', 'hello', 'hey')):
-        return "Hi — I’m here with you. What feels most present for you today?"
+        return "Hey 🙂 What's going on?"
+
     if any(word in text for word in ['anxious', 'panic', 'overwhelmed', 'stress', 'stressed']):
-        return "It sounds like your mind or body may be feeling overloaded. Would it help to slow down and take one small breath with me?"
+        return (
+            "Yeah, it sounds like you've got a lot happening at once. "
+            "You don't have to untangle everything right this second."
+        )
+
     if any(word in text for word in ['sad', 'lonely', 'empty', 'down', 'hurt']):
-        return "I’m hearing a lot of heaviness in that. You don’t have to carry it all at once. Tell me more if you want to unpack it."
+        return (
+            "Yeah... that sounds heavy. "
+            "You can take your time with it — I'm listening."
+        )
+
     if any(word in text for word in ['tired', 'exhausted', 'drained']):
-        return "That sounds draining. A tiny pause might be enough for now. What’s the most pressing part for you today?"
-    return "I’m listening. You can tell me as much or as little as you want about what’s going on."
+        return (
+            "Sounds like you're running on empty. "
+            "What's been taking the most out of you?"
+        )
+
+    return (
+        "I hear you. Tell me what's going on — "
+        "you don't have to make it sound a certain way."
+    )
+
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -256,50 +277,93 @@ def chat():
 
     data = request.get_json(silent=True) or {}
     user_message = (data.get('message') or '').strip()
+
     if not user_message:
         return jsonify({'error': 'Message is required.'}), 400
 
+    # Get the active conversation.
     session_id = session.get('chat_session_id') or str(uuid.uuid4())
     session['chat_session_id'] = session_id
 
-    # Save user message to database
-    user_msg = ChatMessage(user_id=session['user_id'], session_id=session_id, sender='user', message=user_message)
+    # Save the user's message first.
+    user_msg = ChatMessage(
+        user_id=session['user_id'],
+        session_id=session_id,
+        sender='user',
+        message=user_message
+    )
     db.session.add(user_msg)
     db.session.commit()
 
-    # Default fallback local response
-    bot_reply = get_local_reply(user_message)
+    # Load recent messages so Serene remembers the conversation.
+    history = (
+        ChatMessage.query
+        .filter_by(
+            user_id=session['user_id'],
+            session_id=session_id
+        )
+        .order_by(ChatMessage.timestamp.asc(), ChatMessage.id.asc())
+        .all()
+    )[-12:]
 
+    # Use the full therapeutic prompt from prompts.py.
+    messages = [
+        {
+            "role": "system",
+            "content": THERAPEUTIC_SYSTEM_PROMPT
+        }
+    ]
+
+    # Convert database messages into chat-completion roles.
+    for msg in history:
+        messages.append({
+            "role": "user" if msg.sender == "user" else "assistant",
+            "content": msg.message
+        })
+
+    bot_reply = None
     hf_token = os.getenv('HF_API_KEY')
 
     if hf_token:
         try:
             client = InferenceClient(api_key=hf_token)
-            
+
             completion = client.chat.completions.create(
                 model="HuggingFaceH4/zephyr-7b-beta",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are Serene, a warm, compassionate, and supportive therapy companion. Provide empathetic, grounding, and concise responses to help users navigate emotional distress."
-                    },
-                    {"role": "user", "content": user_message}
-                ],
-                max_tokens=150,
+                messages=messages,
+                max_tokens=180,
+                temperature=0.75,
+                top_p=0.9
             )
-            
-            if completion.choices and len(completion.choices) > 0:
-                bot_reply = completion.choices[0].message.content.strip()
+
+            if completion.choices:
+                generated = completion.choices[0].message.content
+
+                if generated:
+                    bot_reply = generated.strip()
 
         except Exception as err:
             print(f"[HF CLIENT ERROR]: {err}")
 
-    # Save bot message to database
-    assistant_msg = ChatMessage(user_id=session['user_id'], session_id=session_id, sender='bot', message=bot_reply)
+    # Fallback only if Hugging Face is unavailable or returns no answer.
+    if not bot_reply:
+        bot_reply = get_local_reply(user_message)
+
+    # Save Serene's response.
+    assistant_msg = ChatMessage(
+        user_id=session['user_id'],
+        session_id=session_id,
+        sender='bot',
+        message=bot_reply
+    )
     db.session.add(assistant_msg)
     db.session.commit()
 
-    return jsonify({'reply': bot_reply, 'session_id': session_id})
+    return jsonify({
+        'reply': bot_reply,
+        'session_id': session_id
+    })
+
 
 
 if __name__ == '__main__':
