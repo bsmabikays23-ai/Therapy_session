@@ -277,8 +277,11 @@ def register():
         user = User(username=username, email=email, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
-        flash('Account created successfully. Please log in.')
-        return redirect(url_for('login'))
+
+        # Log the new user straight in — no trip back to the login page.
+        session['user_id'] = user.id
+        return redirect(url_for('dashboard'))
+
     return render_template('register.html')
 
 
