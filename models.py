@@ -1,3 +1,3 @@
-from app import ChatMessage, JournalEntry, QuizResult, User, db
+from app import ChatMessage, JournalEntry, User, db
 
-__all__ = ['db', 'User', 'ChatMessage', 'JournalEntry', 'QuizResult']
+__all__ = ['db', 'User', 'ChatMessage', 'JournalEntry']
