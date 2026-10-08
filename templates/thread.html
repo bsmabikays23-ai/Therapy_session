@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+
+{% block title %}Thread — Serene{% endblock %}
+
+{% block content %}
+
+<style>
+    .thread-shell {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 80px 32px 120px;
+    }
+    .thread-eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        opacity: 0.55;
+        margin-bottom: 12px;
+    }
+    .thread-title {
+        font-size: 40px;
+        font-weight: 500;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+    }
+    .thread-sub {
+        font-size: 15px;
+        opacity: 0.7;
+        margin-bottom: 56px;
+    }
+    .thread-section { margin-bottom: 48px; }
+    .thread-section h3 {
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-weight: 600;
+        opacity: 0.6;
+        margin: 0 0 16px;
+    }
+    .thread-section p {
+        font-size: 17px;
+        line-height: 1.75;
+        margin: 0 0 14px;
+        opacity: 0.92;
+    }
+    .thread-quote {
+        font-size: 20px;
+        line-height: 1.6;
+        font-style: italic;
+        opacity: 0.85;
+        padding-left: 20px;
+        border-left: 2px solid rgba(255, 255, 255, 0.15);
+    }
+    .thread-empty {
+        font-size: 16px;
+        line-height: 1.7;
+        opacity: 0.7;
+    }
+    .thread-actions {
+        margin-top: 64px;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        opacity: 0.75;
+    }
+    .thread-refresh {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: inherit;
+        padding: 10px 18px;
+        border-radius: 999px;
+        font-size: 13px;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    .thread-refresh:hover { opacity: 0.9; }
+    .thread-meta { font-size: 12px; opacity: 0.5; }
+</style>
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-top">
+            <div class="sidebar-brand">
+                <span class="brand-mark small">◐</span>
+                <div>
+                    <strong>Serene</strong>
+                    <span>Your quiet space</span>
+                </div>
+            </div>
+            <a class="new-chat-btn" href="{{ url_for('new_chat') }}">
+                <span>＋</span> New conversation
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="section-label">Your space</div>
+            <a class="side-nav" href="{{ url_for('dashboard') }}"><span>💬</span> Talk</a>
+            <a class="side-nav" href="{{ url_for('journal') }}"><span>✦</span> Journal</a>
+            <a class="side-nav active" href="{{ url_for('thread') }}"><span>◌</span> Thread</a>
+            <a class="side-nav" href="{{ url_for('letters') }}"><span>✉</span> Letters</a>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="privacy-note"><span>●</span> Only you can see this</div>
+        </div>
+    </aside>
+
+    <main class="chat-workspace">
+        <div class="thread-shell">
+            <div class="thread-eyebrow">Private to you</div>
+            <h1 class="thread-title">Your Thread</h1>
+            <p class="thread-sub">What you've been carrying, written back to you. It changes as you do.</p>
+
+            {% if not has_enough %}
+                <p class="thread-empty">
+                    Not enough to reflect on yet. Talk a little more, and this page will start writing itself.
+                </p>
+            {% elif not snapshot %}
+                <p class="thread-empty">
+                    Serene is reading back over what you've shared. Refresh in a moment, or try again shortly.
+                </p>
+                <form method="post" action="{{ url_for('thread_refresh') }}" style="margin-top:32px;">
+                    <button type="submit" class="thread-refresh">Try again</button>
+                </form>
+            {% else %}
+                {% set after_first = snapshot.content.split("WHAT'S SHIFTED") %}
+                {% set part1 = after_first[0] if after_first|length > 0 else '' %}
+                {% set after_second = after_first[1].split('ONE THING YOU SAID') if after_first|length > 1 else [''] %}
+                {% set part2 = after_second[0] if after_second|length > 0 else '' %}
+                {% set part3 = after_second[1] if after_second|length > 1 else '' %}
+
+                <div class="thread-section">
+                    <h3>What I've noticed</h3>
+                    {% for line in part1.split('\n') %}
+                        {% set t = line.replace("WHAT I'VE NOTICED", "").strip() %}
+                        {% if t %}<p>{{ t }}</p>{% endif %}
+                    {% endfor %}
+                </div>
+
+                {% if part2.strip() %}
+                <div class="thread-section">
+                    <h3>What's shifted</h3>
+                    {% for line in part2.split('\n') %}
+                        {% if line.strip() %}<p>{{ line.strip() }}</p>{% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if part3.strip() %}
+                <div class="thread-section">
+                    <h3>One thing you said</h3>
+                    <p class="thread-quote">{{ part3.strip() }}</p>
+                </div>
+                {% endif %}
+
+                <div class="thread-actions">
+                    <form method="post" action="{{ url_for('thread_refresh') }}">
+                        <button type="submit" class="thread-refresh">Update my Thread</button>
+                    </form>
+                    <span class="thread-meta">
+                        Last written {{ snapshot.created_at.strftime('%d %b %Y') }}
+                    </span>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+{% endblock %}

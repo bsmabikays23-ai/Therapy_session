@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 from flask import Flask, Response, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
-from prompts import THERAPEUTIC_SYSTEM_PROMPT
+from prompts import THERAPEUTIC_SYSTEM_PROMPT, THREAD_PROMPT, LETTER_PROMPT
 
 IMPORT_ERROR = None
 try:
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
-except ImportError as _err:  # BERT is optional; the chat still works without it
+except ImportError as _err:
     IMPORT_ERROR = str(_err)
     torch = None
     AutoModelForSequenceClassification = None
@@ -35,17 +35,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- Groq ---
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_MODEL = os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b')
 GROQ_MODELS = [GROQ_MODEL, 'openai/gpt-oss-20b']
 
-# --- BERT intent classifier + its measured test-set metrics ---
 BERT_DIR = (os.getenv('LOCAL_BERT_MODEL_PATH') or os.path.join(BASE_DIR, 'bert_model')).strip()
-METRICS_PATH = os.path.join(BASE_DIR, 'bert_metrics.json')  # written by evaluate_bert.py
+METRICS_PATH = os.path.join(BASE_DIR, 'bert_metrics.json')
 MODEL_CACHE = {}
 
-# South Africa is UTC+2. Used only to group messages into the user's local days.
 LOCAL_OFFSET = timedelta(hours=int(os.getenv('TZ_OFFSET_HOURS', '2')))
 
 EMERGENCY_LINES = [
@@ -54,7 +51,6 @@ EMERGENCY_LINES = [
     {'name': 'Lifeline', 'number': '0861 322 322'},
 ]
 
-# --- Crisis detection (runs before any model, reply is hard-coded) ---
 CRISIS_PATTERNS = re.compile(
     r"\bkill(ing)? myself\b|\bsuicid|\bend(ing)? (it all|my life|things)\b|\bwant to die\b|"
     r"\bdon'?t want to (be here|live|wake up|exist)\b|\bbetter off (without me|dead)\b|"
@@ -71,7 +67,6 @@ CRISIS_REPLY = (
     "I'm staying right here with you."
 )
 
-# Messages that suggest the calm tools (breathing / grounding) would help right now
 CALM_TRIGGERS = re.compile(
     r"\bpanic|\banxi(ous|ety)\b|\boverwhelm|\bstress|\bcan'?t breathe\b|\bracing\b|"
     r"\bshaking\b|\bon edge\b|\bworried\b|\bnervous\b|\bwound up\b|\btense\b",
@@ -83,27 +78,22 @@ def is_crisis(text: str) -> bool:
     return bool(CRISIS_PATTERNS.search(text or ''))
 
 
-# --- Reply cleanup ---
 def _norm(text: str) -> str:
     return re.sub(r'[^a-z0-9 ]', '', (text or '').lower()).strip()
 
 
 def tidy(reply: str, recent_bots: List[str], user_msg: str) -> str:
-    """Remove parroting and back-to-back questions. Never used on crisis replies."""
     original = reply.strip().strip('"').strip()
     sentences = re.split(r'(?<=[.!?])\s+', original)
 
-    # drop a first sentence that just repeats the user's message
     if len(sentences) > 1:
         ratio = SequenceMatcher(None, _norm(sentences[0]), _norm(user_msg)).ratio()
         if ratio > 0.85:
             sentences = sentences[1:]
 
-    # allow a question only if neither of the last two bot replies asked one
     asked_recently = any((b or '').strip().endswith('?') for b in recent_bots[-2:])
     if asked_recently and len(sentences) > 1 and sentences[-1].endswith('?'):
         trimmed = sentences[:-1]
-        # only trim if what's left is a real reply, not a one-word echo
         if len(' '.join(trimmed).split()) >= 5:
             sentences = trimmed
 
@@ -111,9 +101,7 @@ def tidy(reply: str, recent_bots: List[str], user_msg: str) -> str:
     return cleaned or original
 
 
-# --- BERT intent classifier ---
 def load_bert():
-    """Load once. If it fails, the reason is kept in MODEL_CACHE['bert_error'] and shown in the UI."""
     if 'bert' in MODEL_CACHE:
         return MODEL_CACHE['bert']
     MODEL_CACHE['bert'] = None
@@ -145,7 +133,6 @@ def load_bert():
 
 
 def predict_intent(text: str) -> Optional[Tuple[str, float]]:
-    """Return (label, confidence 0-1) for one message, or None if BERT is unavailable."""
     loaded = load_bert()
     if not loaded or not text:
         return None
@@ -166,7 +153,6 @@ def predict_intent(text: str) -> Optional[Tuple[str, float]]:
 
 
 def load_metrics() -> Optional[Dict]:
-    """Real test-set metrics saved by evaluate_bert.py. Never invented here."""
     try:
         with open(METRICS_PATH, encoding='utf-8') as f:
             m = json.load(f)
@@ -186,12 +172,11 @@ def build_analysis(intent: Optional[Tuple[str, float]]) -> Dict:
     return {
         'intent': intent[0] if intent else None,
         'confidence': round(intent[1] * 100, 1) if intent else None,
-        'metrics': load_metrics(),  # None until evaluate_bert.py has been run
+        'metrics': load_metrics(),
         'bert_error': None if intent else (MODEL_CACHE.get('bert_error') or 'no prediction'),
     }
 
 
-# --- Database models ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), nullable=False)
@@ -220,11 +205,25 @@ class JournalEntry(db.Model):
 
 
 class MessageAnalysis(db.Model):
-    """BERT's reading of one user message (a separate table, existing data is untouched)."""
     id = db.Column(db.Integer, primary_key=True)
     message_id = db.Column(db.Integer, db.ForeignKey('chat_message.id'), unique=True, nullable=False)
     intent = db.Column(db.String(80))
     confidence = db.Column(db.Float)
+
+
+class ThreadSnapshot(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Letter(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    reply = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 with app.app_context():
@@ -236,7 +235,6 @@ with app.app_context():
 
 
 def get_local_reply(user_message: str) -> str:
-    """Used only if Groq is unavailable. Kept in Serene's voice."""
     text = (user_message or '').lower().strip()
     words = set(re.findall(r"[a-z']+", text))
 
@@ -261,7 +259,6 @@ def get_local_reply(user_message: str) -> str:
     return "I'm here. Say it however it comes out, it doesn't have to be neat."
 
 
-# --- Auth ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -314,12 +311,10 @@ def index():
     return redirect(url_for('login'))
 
 
-# --- Dashboard / sessions ---
 SessionPreview = namedtuple('SessionPreview', 'session_id start_time first_msg')
 
 
 def build_past_sessions(user_id: int):
-    """Sidebar entries titled by the user's first message."""
     rows = (
         ChatMessage.query.filter_by(user_id=user_id)
         .order_by(ChatMessage.timestamp.asc(), ChatMessage.id.asc())
@@ -387,7 +382,6 @@ def switch_chat(session_id):
     return redirect(url_for('dashboard'))
 
 
-# --- Your data: download and delete ---
 def _delete_messages(user_id: int, session_id: Optional[str] = None) -> None:
     query = ChatMessage.query.filter(ChatMessage.user_id == user_id)
     if session_id:
@@ -447,6 +441,135 @@ def export_chats():
     )
 
 
+THREAD_REFRESH_DAYS = 7
+THREAD_MIN_USER_MESSAGES = 5
+
+
+def _thread_messages(user_id: int, limit: int = 40):
+    rows = (
+        db.session.query(ChatMessage, MessageAnalysis)
+        .outerjoin(MessageAnalysis, MessageAnalysis.message_id == ChatMessage.id)
+        .filter(ChatMessage.user_id == user_id, ChatMessage.sender == 'user')
+        .order_by(ChatMessage.timestamp.asc(), ChatMessage.id.asc())
+        .all()
+    )
+    return rows[-limit:]
+
+
+def _thread_transcript(rows) -> str:
+    lines = []
+    for msg, analysis in rows:
+        ts = (msg.timestamp + LOCAL_OFFSET).strftime('%d %b %Y')
+        tag = f" [{analysis.intent}]" if analysis and analysis.intent else ""
+        lines.append(f"{ts}{tag}: {msg.message}")
+    return "\n".join(lines)
+
+
+def generate_thread(user_id: int):
+    rows = _thread_messages(user_id)
+    if len(rows) < THREAD_MIN_USER_MESSAGES:
+        return None
+
+    transcript = _thread_transcript(rows)
+    result = _groq_complete(
+        [
+            {'role': 'system', 'content': THREAD_PROMPT},
+            {'role': 'user', 'content': transcript},
+        ],
+        max_tokens=400,
+        temperature=0.6,
+    )
+    return result[0] if result else None
+
+
+@app.route('/thread', methods=['GET'])
+def thread():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    uid = session['user_id']
+    latest = (
+        ThreadSnapshot.query.filter_by(user_id=uid)
+        .order_by(ThreadSnapshot.created_at.desc())
+        .first()
+    )
+
+    needs_refresh = (
+        latest is None
+        or (datetime.utcnow() - latest.created_at).days >= THREAD_REFRESH_DAYS
+    )
+
+    if needs_refresh:
+        fresh = generate_thread(uid)
+        if fresh:
+            latest = ThreadSnapshot(user_id=uid, content=fresh)
+            db.session.add(latest)
+            db.session.commit()
+
+    has_enough = len(_thread_messages(uid)) >= THREAD_MIN_USER_MESSAGES
+
+    return render_template(
+        'thread.html',
+        snapshot=latest,
+        has_enough=has_enough,
+    )
+
+
+@app.route('/thread/refresh', methods=['POST'])
+def thread_refresh():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    uid = session['user_id']
+    fresh = generate_thread(uid)
+    if fresh:
+        db.session.add(ThreadSnapshot(user_id=uid, content=fresh))
+        db.session.commit()
+        flash('Your Thread has been updated.')
+    else:
+        flash("There isn't enough to reflect on yet. Talk a little more, then try again.")
+    return redirect(url_for('thread'))
+
+
+@app.route('/letters', methods=['GET', 'POST'])
+def letters():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        body = (request.form.get('body') or '').strip()
+        if not body:
+            flash('Write something first, even a sentence.')
+            return redirect(url_for('letters'))
+
+        reply_text = None
+        result = _groq_complete(
+            [
+                {'role': 'system', 'content': LETTER_PROMPT},
+                {'role': 'user', 'content': body},
+            ],
+            max_tokens=250,
+            temperature=0.7,
+        )
+        if result:
+            reply_text = result[0]
+
+        db.session.add(Letter(
+            user_id=session['user_id'],
+            body=body,
+            reply=reply_text,
+        ))
+        db.session.commit()
+        return redirect(url_for('letters'))
+
+    past = (
+        Letter.query.filter_by(user_id=session['user_id'])
+        .order_by(Letter.created_at.desc())
+        .all()
+    )
+    return render_template('letters.html', letters=past)
+
+
 @app.route('/journal', methods=['GET', 'POST'])
 def journal():
     if 'user_id' not in session:
@@ -466,7 +589,6 @@ def journal():
     return render_template('journal.html', entries=entries)
 
 
-# --- Insights: what BERT noticed in the person's messages ---
 def chat_streak(user_id: int, today) -> Tuple[int, int]:
     rows = (
         db.session.query(ChatMessage.timestamp)
@@ -475,7 +597,7 @@ def chat_streak(user_id: int, today) -> Tuple[int, int]:
     )
     days = {(r.timestamp + LOCAL_OFFSET).date() for r in rows}
     streak, day = 0, today
-    if day not in days:  # today's chat may not have happened yet
+    if day not in days:
         day -= timedelta(days=1)
     while day in days:
         streak += 1
@@ -560,11 +682,9 @@ def insights():
     )
 
 
-# --- Groq ---
 def _groq_complete(messages, max_tokens=150, temperature=0.8):
-    """Try each Groq model in turn. Returns (text, model) or None. Errors are printed."""
     if not GROQ_API_KEY:
-        print('[GROQ] GROQ_API_KEY is missing. Put it in the .env file next to app.py.')
+        print('[GROQ] GROQ_API_KEY is missing.')
         return None
 
     try:
@@ -590,8 +710,6 @@ def _groq_complete(messages, max_tokens=150, temperature=0.8):
 
 
 def generate_groq_reply(history, intent_label: Optional[str] = None):
-    """Generate Serene's reply. BERT's intent label is intentionally NOT passed to the model —
-    the classifier is unreliable on this dataset and its wrong hints derail the replies."""
     system_content = THERAPEUTIC_SYSTEM_PROMPT
     messages = [{'role': 'system', 'content': system_content}]
     for msg in history:
@@ -637,7 +755,6 @@ def summary():
     return jsonify({'summary': result[0]})
 
 
-# --- Chat API ---
 @app.route('/api/chat', methods=['POST'])
 def chat():
     if 'user_id' not in session:
@@ -676,7 +793,6 @@ def chat():
     crisis = is_crisis(user_message)
 
     if crisis:
-        # Hard-coded, never trimmed or left to a model
         bot_reply = CRISIS_REPLY
         engine = 'crisis-fixed'
         print('[SAFETY] Crisis keywords detected, using fixed reply.')
@@ -686,7 +802,6 @@ def chat():
             bot_reply, model_used = result
             engine = f'groq:{model_used}'
         else:
-            # Groq unavailable: gentle fixed line, never a weak local model
             engine = 'keyword-fallback'
             bot_reply = get_local_reply(user_message)
 
@@ -709,7 +824,6 @@ def chat():
     })
 
 
-# --- Health check: shows exactly what is and isn't working ---
 @app.route('/api/health')
 def health():
     if 'user_id' not in session:

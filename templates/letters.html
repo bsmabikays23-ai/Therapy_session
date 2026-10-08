@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block title %}Letters — Serene{% endblock %}
+
+{% block content %}
+
+<style>
+    .letters-shell { max-width: 720px; margin: 0 auto; padding: 80px 32px 120px; }
+    .letters-eyebrow { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.55; margin-bottom: 12px; }
+    .letters-title { font-size: 40px; font-weight: 500; margin: 0 0 8px; letter-spacing: -0.01em; }
+    .letters-sub { font-size: 15px; line-height: 1.6; opacity: 0.7; margin-bottom: 40px; max-width: 560px; }
+    .letters-form textarea {
+        width: 100%; min-height: 260px; padding: 20px; border-radius: 14px;
+        background: rgba(255,255,255,0.04); color: inherit;
+        border: 1px solid rgba(255,255,255,0.12);
+        font-family: inherit; font-size: 16px; line-height: 1.7;
+        resize: vertical;
+    }
+    .letters-form textarea:focus { outline: none; border-color: rgba(255,255,255,0.28); }
+    .letters-form button {
+        margin-top: 18px; padding: 12px 26px; border-radius: 999px;
+        background: #E8A55C; color: #1a1a1a; border: none;
+        font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .letters-form button:hover { opacity: 0.92; }
+    .letters-past { margin-top: 80px; }
+    .letters-past h2 {
+        font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+        font-weight: 600; opacity: 0.6; margin: 0 0 24px;
+    }
+    .letter-entry {
+        padding: 24px 0; border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .letter-entry .when { font-size: 11px; opacity: 0.5; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+    .letter-entry .body {
+        font-size: 16px; line-height: 1.7; opacity: 0.9; white-space: pre-wrap;
+        margin-bottom: 18px;
+    }
+    .letter-entry .reply {
+        padding: 18px 20px; border-radius: 12px;
+        background: rgba(255,255,255,0.04);
+        font-size: 15px; line-height: 1.7; opacity: 0.95;
+        white-space: pre-wrap;
+    }
+    .letter-entry .reply-label {
+        font-size: 11px; opacity: 0.55; letter-spacing: 0.1em;
+        text-transform: uppercase; margin-bottom: 8px; font-weight: 600;
+    }
+    .letters-empty { font-size: 15px; opacity: 0.6; line-height: 1.7; }
+</style>
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-top">
+            <div class="sidebar-brand">
+                <span class="brand-mark small">◐</span>
+                <div>
+                    <strong>Serene</strong>
+                    <span>Your quiet space</span>
+                </div>
+            </div>
+            <a class="new-chat-btn" href="{{ url_for('new_chat') }}">
+                <span>＋</span> New conversation
+            </a>
+        </div>
+        <div class="sidebar-section">
+            <div class="section-label">Your space</div>
+            <a class="side-nav" href="{{ url_for('dashboard') }}"><span>💬</span> Talk</a>
+            <a class="side-nav" href="{{ url_for('journal') }}"><span>✦</span> Journal</a>
+            <a class="side-nav" href="{{ url_for('thread') }}"><span>◌</span> Thread</a>
+            <a class="side-nav active" href="{{ url_for('letters') }}"><span>✉</span> Letters</a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="privacy-note"><span>●</span> Only you can see this</div>
+        </div>
+    </aside>
+
+    <main class="chat-workspace">
+        <div class="letters-shell">
+            <div class="letters-eyebrow">Private to you</div>
+            <h1 class="letters-title">Letters</h1>
+            <p class="letters-sub">
+                Write to whoever you need to write to. Someone you lost, someone you miss,
+                someone you never got to say goodbye to, or yourself — past or future.
+                No one will read this except you and Serene.
+            </p>
+
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <p style="opacity: 0.75; margin-bottom: 20px;">{{ messages[0] }}</p>
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" class="letters-form">
+                <textarea name="body" placeholder="Dear ____," required></textarea>
+                <button type="submit">Send to Serene</button>
+            </form>
+
+            {% if letters %}
+            <div class="letters-past">
+                <h2>Letters you've written</h2>
+                {% for letter in letters %}
+                <div class="letter-entry">
+                    <div class="when">{{ letter.created_at.strftime('%d %b %Y · %H:%M') }}</div>
+                    <div class="body">{{ letter.body }}</div>
+                    {% if letter.reply %}
+                    <div class="reply">
+                        <div class="reply-label">Serene wrote back</div>
+                        {{ letter.reply }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="letters-past">
+                <p class="letters-empty">No letters yet. When you're ready, write the first one.</p>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+{% endblock %}
